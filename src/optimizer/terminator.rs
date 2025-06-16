@@ -1,6 +1,6 @@
 use log::warn;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
 #[derive(Debug, Clone)]
@@ -19,6 +19,7 @@ impl Terminator {
     }
 
     /// Sets up the handler for Ctrl-C (only call once)
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn new_with_ctrlc_handler() -> Self {
         let ctrlc = Arc::new(AtomicBool::new(false));
         let c = ctrlc.clone();
@@ -26,15 +27,24 @@ impl Terminator {
         ctrlc::set_handler(move || {
             warn!(" terminating...");
             c.store(true, Ordering::SeqCst);
-        }).expect("Error setting Ctrl-C handler");
+        })
+        .expect("Error setting Ctrl-C handler");
 
         Terminator {
             timeout: None,
             ctrlc,
         }
     }
+
+    #[cfg(target_arch = "wasm32")]
+    pub fn new_with_ctrlc_handler() -> Self {
+        warn!("Ctrl-C handler not available on wasm32 target. Using a dummy handler.");
+        Terminator::new_without_ctrlc()
+    }
+
     pub fn is_kill(&self) -> bool {
-        self.timeout.map_or(false, |timeout| Instant::now() > timeout)
+        self.timeout
+            .map_or(false, |timeout| Instant::now() > timeout)
             || self.ctrlc.load(Ordering::SeqCst)
     }
 
