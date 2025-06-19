@@ -1,6 +1,10 @@
-use crate::util::assertions::tracker_matches_layout;
 use jagua_rs::collision_detection::hazards::HazardEntity;
 use jagua_rs::collision_detection::hazards::collector::{BasicHazardCollector, HazardCollector};
+
+use crate::config::{WEIGHT_DECAY, WEIGHT_MAX_INC_RATIO, WEIGHT_MIN_INC_RATIO};
+use crate::quantify::pair_matrix::PairMatrix;
+use crate::quantify::{quantify_collision_poly_container, quantify_collision_poly_poly};
+use crate::util::assertions::tracker_matches_layout;
 use jagua_rs::entities::{Layout, PItemKey};
 use ordered_float::Float;
 use slotmap::SecondaryMap;
@@ -24,17 +28,26 @@ impl CollisionTracker {
         // Create the tracker
         let mut ot = Self {
             size,
-            pk_idx_map: l.placed_items.keys().enumerate()
+            pk_idx_map: l
+                .placed_items
+                .keys()
+                .enumerate()
                 .map(|(i, pk)| (pk, i))
                 .collect(),
             pair_collisions: PairMatrix::new(size),
-            container_collisions: vec![CTEntry { weight: 1.0, loss: 0.0 }; size],
+            container_collisions: vec![
+                CTEntry {
+                    weight: 1.0,
+                    loss: 0.0
+                };
+                size
+            ],
         };
 
         // Recompute the loss for all items
-        l.placed_items.keys().for_each(|pk| {
-            ot.recompute_loss_for_item(pk, l)
-        });
+        l.placed_items
+            .keys()
+            .for_each(|pk| ot.recompute_loss_for_item(pk, l));
 
         debug_assert!(tracker_matches_layout(&ot, l));
 
@@ -82,10 +95,13 @@ impl CollisionTracker {
     pub fn restore_but_keep_weights(&mut self, cts: &CTSnapshot, layout: &Layout) {
         //Copy the loss and keys, but keep the weights
         self.pk_idx_map = cts.pk_idx_map.clone();
-        self.pair_collisions.data.iter_mut()
+        self.pair_collisions
+            .data
+            .iter_mut()
             .zip(cts.pair_collisions.data.iter())
             .for_each(|(a, b)| a.loss = b.loss);
-        self.container_collisions.iter_mut()
+        self.container_collisions
+            .iter_mut()
             .zip(cts.container_collisions.iter())
             .for_each(|(a, b)| a.loss = b.loss);
         debug_assert!(tracker_matches_layout(self, layout));
@@ -106,14 +122,20 @@ impl CollisionTracker {
     }
 
     pub fn increment_weights(&mut self) {
-        let max_o = self.pair_collisions.data.iter()
+        let max_o = self
+            .pair_collisions
+            .data
+            .iter()
             .map(|e| e.loss)
             .fold(0.0, |a, b| a.max(b));
 
         for e in self.pair_collisions.data.iter_mut() {
             let multiplier = match e.loss == 0.0 {
                 true => WEIGHT_DECAY, // no collision
-                false => WEIGHT_MIN_INC_RATIO + (WEIGHT_MAX_INC_RATIO - WEIGHT_MIN_INC_RATIO) * (e.loss / max_o),
+                false => {
+                    WEIGHT_MIN_INC_RATIO
+                        + (WEIGHT_MAX_INC_RATIO - WEIGHT_MIN_INC_RATIO) * (e.loss / max_o)
+                }
             };
             e.weight = (e.weight * multiplier).max(1.0);
         }
@@ -168,9 +190,16 @@ impl CollisionTracker {
     }
 
     pub fn get_total_loss(&self) -> f32 {
-        let cont_o = self.container_collisions.iter().map(|e| e.loss).sum::<f32>();
+        let cont_o = self
+            .container_collisions
+            .iter()
+            .map(|e| e.loss)
+            .sum::<f32>();
 
-        let pair_o = self.pair_collisions.data.iter()
+        let pair_o = self
+            .pair_collisions
+            .data
+            .iter()
             .map(|e| e.loss)
             .sum::<f32>();
 
@@ -178,11 +207,16 @@ impl CollisionTracker {
     }
 
     pub fn get_total_weighted_loss(&self) -> f32 {
-        let cont_w_o = self.container_collisions.iter()
+        let cont_w_o = self
+            .container_collisions
+            .iter()
             .map(|e| e.weighted_loss())
             .sum::<f32>();
 
-        let pair_w_o = self.pair_collisions.data.iter()
+        let pair_w_o = self
+            .pair_collisions
+            .data
+            .iter()
             .map(|e| e.weighted_loss())
             .sum::<f32>();
 
