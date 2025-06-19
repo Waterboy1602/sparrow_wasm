@@ -1,21 +1,26 @@
 extern crate core;
 
 use clap::Parser as Clap;
-use log::{info, warn, Level};
-use rand::prelude::SmallRng;
+use log::{Level, info, warn};
 use rand::SeedableRng;
+use rand::prelude::SmallRng;
 use sparrow::config::*;
-use sparrow::optimizer::{optimize, Terminator};
+use sparrow::optimizer::{Terminator, optimize};
 use sparrow::util::io;
 use sparrow::util::io::{MainCli, SPOutput};
 use std::fs;
 use std::path::Path;
-use std::time::Duration;
+
 use jagua_rs::io::import::Importer;
 use jagua_rs::io::svg::s_layout_to_svg;
 use sparrow::EPOCH;
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
+
+#[cfg(not(target_arch = "wasm32"))]
+use std::time::Duration;
+#[cfg(target_arch = "wasm32")]
+use web_time::Duration;
 
 fn main() -> Result<()>{
     fs::create_dir_all(OUTPUT_DIR)?;

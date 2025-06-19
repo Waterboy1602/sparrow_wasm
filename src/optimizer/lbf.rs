@@ -1,16 +1,19 @@
 use crate::eval::lbf_evaluator::LBFEvaluator;
 use crate::eval::sample_eval::SampleEval;
-use crate::sample::search::{search_placement, SampleConfig};
+use crate::sample::search::{SampleConfig, search_placement};
+use crate::util::assertions;
 use itertools::Itertools;
+use jagua_rs::entities::Instance;
+use jagua_rs::probs::spp::entities::{SPInstance, SPPlacement, SPProblem};
 use log::debug;
 use ordered_float::OrderedFloat;
 use rand::prelude::SmallRng;
 use std::cmp::Reverse;
 use std::iter;
+#[cfg(not(target_arch = "wasm32"))]
 use std::time::Instant;
-use jagua_rs::entities::Instance;
-use jagua_rs::probs::spp::entities::{SPInstance, SPPlacement, SPProblem};
-use crate::util::assertions;
+#[cfg(target_arch = "wasm32")]
+use web_time::Instant;
 
 pub struct LBFBuilder {
     pub instance: SPInstance,

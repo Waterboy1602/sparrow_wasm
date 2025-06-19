@@ -1,15 +1,19 @@
 #![cfg_attr(feature = "simd", feature(portable_simd))]
 #![allow(const_item_mutation)]
 
-use std::sync::LazyLock;
 use numfmt::{Formatter, Precision, Scales};
+use std::sync::LazyLock;
+#[cfg(not(target_arch = "wasm32"))]
 use std::time::Instant;
+#[cfg(target_arch = "wasm32")]
+use web_time::Instant;
+
+pub mod config;
+pub mod eval;
 pub mod optimizer;
 pub mod quantify;
 pub mod sample;
 pub mod util;
-pub mod config;
-pub mod eval;
 
 pub static EPOCH: LazyLock<Instant> = LazyLock::new(Instant::now);
 

@@ -1,10 +1,7 @@
-use jagua_rs::collision_detection::hazards::collector::{BasicHazardCollector, HazardCollector};
-use jagua_rs::collision_detection::hazards::HazardEntity;
-use jagua_rs::entities::{Layout, PItemKey};
-use crate::config::{WEIGHT_DECAY, WEIGHT_MAX_INC_RATIO, WEIGHT_MIN_INC_RATIO};
-use crate::quantify::pair_matrix::PairMatrix;
-use crate::quantify::{quantify_collision_poly_container, quantify_collision_poly_poly};
 use crate::util::assertions::tracker_matches_layout;
+use jagua_rs::collision_detection::hazards::HazardEntity;
+use jagua_rs::collision_detection::hazards::collector::{BasicHazardCollector, HazardCollector};
+use jagua_rs::entities::{Layout, PItemKey};
 use ordered_float::Float;
 use slotmap::SecondaryMap;
 

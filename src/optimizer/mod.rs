@@ -1,9 +1,9 @@
+use crate::FMT;
 use crate::config::*;
 use crate::optimizer::lbf::LBFBuilder;
 use crate::optimizer::separator::Separator;
 pub use crate::optimizer::terminator::Terminator;
-use crate::sample::uniform_sampler::{convert_sample_to_closest_feasible};
-use crate::FMT;
+use crate::sample::uniform_sampler::convert_sample_to_closest_feasible;
 use float_cmp::approx_eq;
 use itertools::Itertools;
 use jagua_rs::collision_detection::hazards::HazardEntity;
@@ -16,14 +16,17 @@ use rand::prelude::{IteratorRandom, SmallRng};
 use rand::{Rng, RngCore, SeedableRng};
 use rand_distr::Distribution;
 use rand_distr::Normal;
-use std::cmp::Reverse;
-use std::time::{Duration, Instant};
 use slotmap::SecondaryMap;
+use std::cmp::Reverse;
+#[cfg(not(target_arch = "wasm32"))]
+use std::time::{Duration, Instant};
+#[cfg(target_arch = "wasm32")]
+use web_time::{Duration, Instant};
 
 pub mod lbf;
 pub mod separator;
-mod worker;
 pub mod terminator;
+mod worker;
 
 // All high-level heuristic logic
 pub fn optimize(instance: SPInstance, mut rng: SmallRng, output_folder_path: String, mut terminator: Terminator, explore_dur: Duration, compress_dur: Duration) -> SPSolution {
