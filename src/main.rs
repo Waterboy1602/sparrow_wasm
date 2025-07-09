@@ -19,10 +19,7 @@ use anyhow::{Result, bail};
 
 use sparrow::util::ctrlc_terminator::CtrlCTerminator;
 use sparrow::util::svg_exporter::SvgExporter;
-#[cfg(not(target_arch = "wasm32"))]
 use std::time::Duration;
-#[cfg(target_arch = "wasm32")]
-use web_time::Duration;
 
 fn main() -> Result<()> {
     fs::create_dir_all(OUTPUT_DIR)?;

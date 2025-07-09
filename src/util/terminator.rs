@@ -1,5 +1,4 @@
-use std::time::{Duration, Instant};
-
+use crate::{Duration, Instant};
 /// Generic trait for any struct that can determine if the optimization process should terminate.
 pub trait Terminator {
     /// Checks if the termination condition is met
@@ -7,7 +6,7 @@ pub trait Terminator {
 
     /// Sets a new timeout duration
     fn new_timeout(&mut self, timeout: Duration);
-    
+
     /// Returns the instant when a timeout was set, if any
     fn timeout_at(&self) -> Option<Instant>;
 }
@@ -25,10 +24,11 @@ impl BasicTerminator {
 
 impl Terminator for BasicTerminator {
     fn kill(&self) -> bool {
-        self.timeout.map_or(false, |timeout| Instant::now() > timeout)
+        self.timeout
+            .map_or(false, |timeout| Instant::now() > timeout)
     }
 
-    fn new_timeout(&mut self, timeout: Duration){
+    fn new_timeout(&mut self, timeout: Duration) {
         self.timeout = Some(Instant::now() + timeout);
     }
 

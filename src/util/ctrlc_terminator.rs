@@ -1,11 +1,8 @@
 use crate::util::terminator::Terminator;
+use crate::{Duration, Instant};
 use log::warn;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-#[cfg(not(target_arch = "wasm32"))]
-use std::time::{Duration, Instant};
-#[cfg(target_arch = "wasm32")]
-use web_time::{Duration, Instant};
 
 #[derive(Debug, Clone)]
 pub struct CtrlCTerminator {
@@ -13,9 +10,9 @@ pub struct CtrlCTerminator {
     pub ctrlc: Arc<AtomicBool>,
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl CtrlCTerminator {
     /// Sets up the handler for Ctrl-C (only call once)
-    #[cfg(not(target_arch = "wasm32"))]
     pub fn new() -> Self {
         let ctrlc = Arc::new(AtomicBool::new(false));
         let c = ctrlc.clone();
@@ -30,12 +27,6 @@ impl CtrlCTerminator {
             timeout: None,
             ctrlc,
         }
-    }
-
-    #[cfg(target_arch = "wasm32")]
-    pub fn new_with_ctrlc_handler() -> Self {
-        warn!("Ctrl-C handler not available on wasm32 target. Using a dummy handler.");
-        Terminator::new_without_ctrlc()
     }
 
     pub fn is_kill(&self) -> bool {

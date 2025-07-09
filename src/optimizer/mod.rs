@@ -5,6 +5,7 @@ use crate::optimizer::separator::Separator;
 use crate::sample::uniform_sampler::convert_sample_to_closest_feasible;
 use crate::util::listener::{ReportType, SolutionListener};
 use crate::util::terminator::Terminator;
+use crate::{Duration, Instant};
 use float_cmp::approx_eq;
 use itertools::Itertools;
 use jagua_rs::collision_detection::hazards::HazardEntity;
@@ -19,10 +20,6 @@ use rand_distr::Distribution;
 use rand_distr::Normal;
 use slotmap::SecondaryMap;
 use std::cmp::Reverse;
-#[cfg(not(target_arch = "wasm32"))]
-use std::time::{Duration, Instant};
-#[cfg(target_arch = "wasm32")]
-use web_time::{Duration, Instant};
 pub mod lbf;
 pub mod separator;
 mod worker;

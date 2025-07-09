@@ -1,4 +1,5 @@
 use crate::FMT;
+use crate::Instant;
 use crate::optimizer::worker::{SepStats, SeparatorWorker};
 use crate::quantify::tracker::{CTSnapshot, CollisionTracker};
 use crate::sample::search::SampleConfig;
@@ -8,7 +9,6 @@ use crate::util::terminator::Terminator;
 use itertools::Itertools;
 use jagua_rs::entities::PItemKey;
 use jagua_rs::geometry::DTransformation;
-use jagua_rs::io::svg::{layout_to_svg, s_layout_to_svg};
 use jagua_rs::probs::spp::entities::{SPInstance, SPPlacement, SPProblem, SPSolution};
 use log::{Level, debug, log};
 use ordered_float::OrderedFloat;
@@ -18,10 +18,6 @@ use rand::{Rng, SeedableRng};
 use rayon::ThreadPool;
 use rayon::iter::IntoParallelRefMutIterator;
 use rayon::iter::ParallelIterator;
-#[cfg(not(target_arch = "wasm32"))]
-use std::time::Instant;
-#[cfg(target_arch = "wasm32")]
-use web_time::Instant;
 
 pub struct SeparatorConfig {
     pub iter_no_imprv_limit: usize,
