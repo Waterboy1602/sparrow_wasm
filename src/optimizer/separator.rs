@@ -1,11 +1,10 @@
-use crate::config::{DRAW_OPTIONS, LIVE_DIR};
-use crate::optimizer::Terminator;
+use crate::FMT;
 use crate::optimizer::worker::{SepStats, SeparatorWorker};
 use crate::quantify::tracker::{CTSnapshot, CollisionTracker};
 use crate::sample::search::SampleConfig;
 use crate::util::assertions::tracker_matches_layout;
-use crate::util::io;
-use crate::{EXPORT_LIVE_SVG, EXPORT_ONLY_FINAL_SVG, FMT};
+use crate::util::listener::{ReportType, SolutionListener};
+use crate::util::terminator::Terminator;
 use itertools::Itertools;
 use jagua_rs::entities::PItemKey;
 use jagua_rs::geometry::DTransformation;
@@ -19,7 +18,6 @@ use rand::{Rng, SeedableRng};
 use rayon::ThreadPool;
 use rayon::iter::IntoParallelRefMutIterator;
 use rayon::iter::ParallelIterator;
-use std::path::Path;
 #[cfg(not(target_arch = "wasm32"))]
 use std::time::Instant;
 #[cfg(target_arch = "wasm32")]
@@ -39,8 +37,6 @@ pub struct Separator {
     pub prob: SPProblem,
     pub ct: CollisionTracker,
     pub workers: Vec<SeparatorWorker>,
-    pub svg_counter: usize,
-    pub output_svg_folder: String,
     pub config: SeparatorConfig,
     #[cfg(not(target_arch = "wasm32"))]
     pub pool: ThreadPool,
@@ -51,8 +47,6 @@ impl Separator {
         instance: SPInstance,
         prob: SPProblem,
         mut rng: SmallRng,
-        output_svg_folder: String,
-        svg_counter: usize,
         config: SeparatorConfig,
     ) -> Self {
         let ct = CollisionTracker::new(&prob.layout);
@@ -78,15 +72,17 @@ impl Separator {
             rng,
             ct,
             workers,
-            svg_counter,
-            output_svg_folder,
             config,
             #[cfg(not(target_arch = "wasm32"))]
             pool,
         }
     }
 
-    pub fn separate(&mut self, term: &Terminator) -> (SPSolution, CTSnapshot) {
+    pub fn separate(
+        &mut self,
+        term: &impl Terminator,
+        sol_listener: &mut impl SolutionListener,
+    ) -> (SPSolution, CTSnapshot) {
         let mut min_loss_sol = (self.prob.save(), self.ct.save());
         let mut min_loss = self.ct.get_total_loss();
         log!(
@@ -104,7 +100,7 @@ impl Separator {
         };
         let start = Instant::now();
 
-        'outer: while n_strikes < self.config.strike_limit && !term.is_kill() {
+        'outer: while n_strikes < self.config.strike_limit && !term.kill() {
             let mut n_iter_no_improvement = 0;
 
             let initial_strike_loss = self.ct.get_total_loss();
@@ -150,7 +146,11 @@ impl Separator {
                         "[SEP] [s:{n_strikes},i:{n_iter}] (*) min_l: {}",
                         FMT().fmt2(loss)
                     );
-                    self.export_svg(None, "i", true);
+                    sol_listener.report(
+                        ReportType::ExplImproving,
+                        &self.prob.save(),
+                        &self.instance,
+                    );
                     if loss < min_loss * 0.98 {
                         //only reset the iter_no_improvement counter if the loss improved significantly
                         n_iter_no_improvement = 0;
@@ -199,7 +199,7 @@ impl Separator {
                     // Sync the workers with the master
                     worker.load(&master_sol, &self.ct);
                     // Let them modify
-                    worker.separate()
+                    worker.move_colliding_items()
                 })
                 .sum()
         });
@@ -212,7 +212,7 @@ impl Separator {
                 // Sync the workers with the master
                 worker.load(&master_sol, &self.ct);
                 // Let them modify
-                worker.separate()
+                worker.move_colliding_items()
             })
             .sum();
 
@@ -325,61 +325,5 @@ impl Separator {
             };
         });
         debug!("[SEP] changed strip width to {:.3}", new_width);
-    }
-
-    pub fn export_svg(&mut self, solution: Option<SPSolution>, suffix: &str, only_live: bool) {
-        if !EXPORT_ONLY_FINAL_SVG {
-            if self.svg_counter == 0 {
-                std::fs::create_dir_all(&self.output_svg_folder).unwrap();
-                //remove all svg files from the directory. ONLY SVG FILES
-                for file in std::fs::read_dir(&self.output_svg_folder)
-                    .unwrap()
-                    .flatten()
-                {
-                    if file.path().extension().unwrap_or_default() == "svg" {
-                        std::fs::remove_file(file.path()).unwrap();
-                    }
-                }
-            }
-
-            let file_name = format!(
-                "{}_{:.3}_{suffix}",
-                self.svg_counter,
-                self.prob.strip_width()
-            );
-            let svg = match solution {
-                Some(sol) => s_layout_to_svg(
-                    &sol.layout_snapshot,
-                    &self.instance,
-                    DRAW_OPTIONS,
-                    file_name.as_str(),
-                ),
-                None => layout_to_svg(
-                    &self.prob.layout,
-                    &self.instance,
-                    DRAW_OPTIONS,
-                    file_name.as_str(),
-                ),
-            };
-
-            if EXPORT_LIVE_SVG {
-                if !Path::new(LIVE_DIR).exists() {
-                    std::fs::create_dir_all(LIVE_DIR).unwrap();
-                }
-                io::write_svg(
-                    &svg,
-                    Path::new(&*format!("{}/.live_solution.svg", LIVE_DIR)),
-                    Level::Trace,
-                )
-                .expect("failed to write live svg");
-            }
-
-            if !only_live {
-                let file_path = &*format!("{}/{}.svg", &self.output_svg_folder, file_name);
-                io::write_svg(&svg, Path::new(file_path), self.config.log_level)
-                    .expect("failed to write intermediate svg");
-                self.svg_counter += 1;
-            }
-        }
     }
 }

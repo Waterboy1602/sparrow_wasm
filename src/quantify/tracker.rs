@@ -57,7 +57,7 @@ impl CollisionTracker {
     fn recompute_loss_for_item(&mut self, pk: PItemKey, l: &Layout) {
         let idx = self.pk_idx_map[pk];
         let pi = &l.placed_items[pk];
-        let shape = pi.shape.as_ref();
+        let shape = &pi.shape;
 
         // Reset all current loss values for the item
         for i in 0..self.size {
@@ -122,28 +122,26 @@ impl CollisionTracker {
     }
 
     pub fn increment_weights(&mut self) {
-        let max_o = self
+        let max_loss = self
             .pair_collisions
             .data
             .iter()
+            .chain(self.container_collisions.iter())
             .map(|e| e.loss)
             .fold(0.0, |a, b| a.max(b));
 
-        for e in self.pair_collisions.data.iter_mut() {
+        for e in self
+            .pair_collisions
+            .data
+            .iter_mut()
+            .chain(self.container_collisions.iter_mut())
+        {
             let multiplier = match e.loss == 0.0 {
                 true => WEIGHT_DECAY, // no collision
                 false => {
                     WEIGHT_MIN_INC_RATIO
-                        + (WEIGHT_MAX_INC_RATIO - WEIGHT_MIN_INC_RATIO) * (e.loss / max_o)
+                        + (WEIGHT_MAX_INC_RATIO - WEIGHT_MIN_INC_RATIO) * (e.loss / max_loss)
                 }
-            };
-            e.weight = (e.weight * multiplier).max(1.0);
-        }
-
-        for e in self.container_collisions.iter_mut() {
-            let multiplier = match e.loss == 0.0 {
-                true => WEIGHT_DECAY, // no collision
-                false => WEIGHT_MAX_INC_RATIO,
             };
             e.weight = (e.weight * multiplier).max(1.0);
         }

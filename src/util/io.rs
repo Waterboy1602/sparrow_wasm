@@ -77,6 +77,10 @@ pub fn init_logger(level_filter: LevelFilter) -> Result<()> {
 
 
 pub fn write_svg(document: &Document, path: &Path, log_lvl: Level) -> Result<()> {
+    //make sure the parent directory exists
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).context("could not create parent directory for svg file")?;
+    }
     svg::save(path, document)?;
     log!(log_lvl,
         "[IO] svg exported to file://{}",

@@ -1,3 +1,4 @@
+use sparrow::util::terminator::Terminator;
 extern crate core;
 
 use ordered_float::OrderedFloat;
@@ -6,7 +7,7 @@ use rand::{Rng, RngCore, SeedableRng};
 use sparrow::config::*;
 use sparrow::optimizer::lbf::LBFBuilder;
 use sparrow::optimizer::separator::Separator;
-use sparrow::optimizer::{compression_phase, exploration_phase, Terminator};
+use sparrow::optimizer::{compression_phase, exploration_phase};
 use sparrow::util::io;
 use std::env::args;
 use std::fs;
@@ -16,6 +17,8 @@ use std::time::{Duration, Instant};
 use anyhow::Result;
 use jagua_rs::io::import::Importer;
 use jagua_rs::io::svg::s_layout_to_svg;
+use sparrow::util::listener::DummySolListener;
+use sparrow::util::terminator::BasicTerminator;
 
 fn main() -> Result<()> {
     //the input file is the first argument
@@ -58,7 +61,6 @@ fn main() -> Result<()> {
 
     let mut final_solutions = vec![];
 
-    let dummy_terminator = Terminator::new_without_ctrlc();
 
     for i in 0..n_batches {
         println!("[BENCH] batch {}/{}", i + 1, n_batches);
@@ -67,25 +69,24 @@ fn main() -> Result<()> {
         rayon::scope(|s| {
             for (j, sol_slice) in iter_solutions.iter_mut().enumerate() {
                 let bench_idx = i * n_runs_per_iter + j;
-                let output_folder_path = format!("{OUTPUT_DIR}/bench_{}_sols_{}", bench_idx, ext_intance.name);
                 let instance = instance.clone();
                 let mut rng = SmallRng::seed_from_u64(rng.random());
-                let mut terminator = dummy_terminator.clone();
+                let mut terminator = BasicTerminator::new();
 
                 s.spawn(move |_| {
                     let mut next_rng = || SmallRng::seed_from_u64(rng.next_u64());
                     let builder = LBFBuilder::new(instance.clone(), next_rng(), LBF_SAMPLE_CONFIG).construct();
-                    let mut expl_separator = Separator::new(builder.instance, builder.prob, next_rng(), output_folder_path, 0, SEP_CFG_EXPLORE);
+                    let mut expl_separator = Separator::new(builder.instance, builder.prob, next_rng(), SEP_CFG_EXPLORE);
 
-                    terminator.set_timeout_from_now(time_limit.mul_f32(EXPLORE_TIME_RATIO));
-                    let solutions = exploration_phase(&instance, &mut expl_separator, &terminator);
+                    terminator.new_timeout(time_limit.mul_f32(EXPLORE_TIME_RATIO));
+                    let solutions = exploration_phase(&instance, &mut expl_separator, &terminator, &mut DummySolListener);
                     let final_explore_sol = solutions.last().expect("no solutions found during exploration");
 
                     let start_comp = Instant::now();
 
-                    terminator.set_timeout_from_now(time_limit.mul_f32(COMPRESS_TIME_RATIO)).reset_ctrlc();
-                    let mut cmpr_separator = Separator::new(expl_separator.instance, expl_separator.prob, next_rng(), expl_separator.output_svg_folder, expl_separator.svg_counter, SEP_CFG_COMPRESS);
-                    let cmpr_sol = compression_phase(&instance, &mut cmpr_separator, final_explore_sol, &terminator);
+                    terminator.new_timeout(time_limit.mul_f32(COMPRESS_TIME_RATIO));
+                    let mut cmpr_separator = Separator::new(expl_separator.instance, expl_separator.prob, next_rng(), SEP_CFG_COMPRESS);
+                    let cmpr_sol = compression_phase(&instance, &mut cmpr_separator, final_explore_sol, &terminator, &mut DummySolListener);
 
                     println!("[BENCH] [id:{:>3}] finished, expl: {:.3}% ({}s), cmpr: {:.3}% (+{:.3}%) ({}s)",
                              bench_idx,

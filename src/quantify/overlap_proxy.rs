@@ -1,3 +1,4 @@
+use std::f32::consts::PI;
 use jagua_rs::geometry::fail_fast::SPSurrogate;
 use jagua_rs::geometry::geo_traits::DistanceTo;
 
@@ -18,6 +19,8 @@ pub fn overlap_area_proxy<'a>(sp1: &SPSurrogate, sp2: &SPSurrogate, epsilon: f32
             total_overlap += pd_decay * f32::min(p1.radius, p2.radius);
         }
     }
+    total_overlap *= PI;
     debug_assert!(total_overlap.is_normal());
+    
     total_overlap
 }

@@ -1,3 +1,4 @@
+use crate::util::terminator::Terminator;
 use log::warn;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -7,23 +8,15 @@ use std::time::{Duration, Instant};
 use web_time::{Duration, Instant};
 
 #[derive(Debug, Clone)]
-pub struct Terminator {
+pub struct CtrlCTerminator {
     pub timeout: Option<Instant>,
     pub ctrlc: Arc<AtomicBool>,
 }
 
-impl Terminator {
-    /// Creates a dummy that never terminates
-    pub fn new_without_ctrlc() -> Self {
-        Terminator {
-            timeout: None,
-            ctrlc: Arc::new(AtomicBool::new(false)),
-        }
-    }
-
+impl CtrlCTerminator {
     /// Sets up the handler for Ctrl-C (only call once)
     #[cfg(not(target_arch = "wasm32"))]
-    pub fn new_with_ctrlc_handler() -> Self {
+    pub fn new() -> Self {
         let ctrlc = Arc::new(AtomicBool::new(false));
         let c = ctrlc.clone();
 
@@ -33,7 +26,7 @@ impl Terminator {
         })
         .expect("Error setting Ctrl-C handler");
 
-        Terminator {
+        Self {
             timeout: None,
             ctrlc,
         }
@@ -48,22 +41,23 @@ impl Terminator {
     pub fn is_kill(&self) -> bool {
         self.timeout
             .map_or(false, |timeout| Instant::now() > timeout)
+    }
+}
+
+impl Terminator for CtrlCTerminator {
+    fn kill(&self) -> bool {
+        self.timeout
+            .map_or(false, |timeout| Instant::now() > timeout)
             || self.ctrlc.load(Ordering::SeqCst)
     }
 
-    pub fn reset_ctrlc(&self) -> &Self {
+    fn new_timeout(&mut self, timeout: Duration) {
+        // Reset the Ctrl-C flag and set a new timeout
         self.ctrlc.store(false, Ordering::SeqCst);
-        self
-    }
-
-    /// Sets the timeout to a specific time in the future
-    pub fn set_timeout_from_now(&mut self, timeout: Duration) -> &mut Self {
         self.timeout = Some(Instant::now() + timeout);
-        self
     }
 
-    pub fn clear_timeout(&mut self) -> &mut Self {
-        self.timeout = None;
-        self
+    fn timeout_at(&self) -> Option<Instant> {
+        self.timeout
     }
 }

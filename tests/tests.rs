@@ -1,17 +1,20 @@
 #[cfg(test)]
 mod integration_tests {
-    use rand::prelude::SmallRng;
+    use sparrow::util::terminator::Terminator;
+use rand::prelude::SmallRng;
     use rand::SeedableRng;
     use sparrow::config::{CDE_CONFIG, LBF_SAMPLE_CONFIG, OUTPUT_DIR, SEP_CFG_EXPLORE, SIMPL_TOLERANCE, MIN_ITEM_SEPARATION};
     use sparrow::optimizer::lbf::LBFBuilder;
     use sparrow::optimizer::separator::Separator;
-    use sparrow::optimizer::{compression_phase, exploration_phase, Terminator};
+    use sparrow::optimizer::{compression_phase, exploration_phase};
     use sparrow::util::io;
     use std::path::Path;
     use std::time::Duration;
     use test_case::test_case;
     use anyhow::Result;
     use jagua_rs::io::import::Importer;
+    use sparrow::util::svg_exporter::SvgExporter;
+    use sparrow::util::terminator::BasicTerminator;
 
     const EXPLORE_TIMEOUT: Duration = Duration::from_secs(10);
     const COMPRESS_TIMEOUT: Duration = Duration::from_secs(10);
@@ -29,9 +32,7 @@ mod integration_tests {
         let instance = jagua_rs::probs::spp::io::import(&importer, &json_instance)?;
 
         println!("[TEST] loaded instance: {}", json_instance.name);
-
-        let output_folder_path = format!("{OUTPUT_DIR}/tests_{}", json_instance.name);
-
+        
         let rng = match RNG_SEED {
             Some(seed) => {
                 println!("[TEST] using provided seed: {}", seed);
@@ -44,17 +45,22 @@ mod integration_tests {
             }
         };
 
-        let mut terminator = Terminator::new_without_ctrlc();
-        terminator.set_timeout_from_now(EXPLORE_TIMEOUT);
+        let mut terminator = BasicTerminator::new();
+        let mut sol_listener = SvgExporter::new(
+            Some(format!("{OUTPUT_DIR}/tests_{}", json_instance.name)),
+            None,
+            None
+        );
+        terminator.new_timeout(EXPLORE_TIMEOUT);
 
         let builder = LBFBuilder::new(instance.clone(), rng, LBF_SAMPLE_CONFIG).construct();
-        let mut separator = Separator::new(builder.instance, builder.prob, builder.rng, output_folder_path, 0, SEP_CFG_EXPLORE);
+        let mut separator = Separator::new(builder.instance, builder.prob, builder.rng,SEP_CFG_EXPLORE);
 
-        let sols = exploration_phase(&instance, &mut separator, &terminator);
+        let sols = exploration_phase(&instance, &mut separator, &terminator, &mut sol_listener);
         let final_explore_sol = sols.last().expect("no solutions found during exploration");
 
-        terminator.set_timeout_from_now(COMPRESS_TIMEOUT);
-        compression_phase(&instance, &mut separator, final_explore_sol, &terminator);
+        terminator.new_timeout(COMPRESS_TIMEOUT);
+        compression_phase(&instance, &mut separator, final_explore_sol, &terminator, &mut sol_listener);
         Ok(())
     }
 }

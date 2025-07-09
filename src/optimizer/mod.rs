@@ -2,8 +2,9 @@ use crate::FMT;
 use crate::config::*;
 use crate::optimizer::lbf::LBFBuilder;
 use crate::optimizer::separator::Separator;
-pub use crate::optimizer::terminator::Terminator;
 use crate::sample::uniform_sampler::convert_sample_to_closest_feasible;
+use crate::util::listener::{ReportType, SolutionListener};
+use crate::util::terminator::Terminator;
 use float_cmp::approx_eq;
 use itertools::Itertools;
 use jagua_rs::collision_detection::hazards::HazardEntity;
@@ -22,60 +23,102 @@ use std::cmp::Reverse;
 use std::time::{Duration, Instant};
 #[cfg(target_arch = "wasm32")]
 use web_time::{Duration, Instant};
-
 pub mod lbf;
 pub mod separator;
-pub mod terminator;
 mod worker;
 
 // All high-level heuristic logic
-pub fn optimize(instance: SPInstance, mut rng: SmallRng, output_folder_path: String, mut terminator: Terminator, explore_dur: Duration, compress_dur: Duration) -> SPSolution {
+pub fn optimize(
+    instance: SPInstance,
+    mut rng: SmallRng,
+    sol_listener: &mut impl SolutionListener,
+    terminator: &mut impl Terminator,
+    explore_dur: Duration,
+    compress_dur: Duration,
+) -> SPSolution {
     let mut next_rng = || SmallRng::seed_from_u64(rng.next_u64());
     let builder = LBFBuilder::new(instance.clone(), next_rng(), LBF_SAMPLE_CONFIG).construct();
 
-    terminator.set_timeout_from_now(explore_dur);
-    let mut expl_separator = Separator::new(builder.instance, builder.prob, next_rng(), output_folder_path.clone(), 0, SEP_CFG_EXPLORE);
-    let solutions = exploration_phase(&instance, &mut expl_separator, &terminator);
+    terminator.new_timeout(explore_dur);
+    let mut expl_separator =
+        Separator::new(builder.instance, builder.prob, next_rng(), SEP_CFG_EXPLORE);
+    let solutions = exploration_phase(&instance, &mut expl_separator, terminator, sol_listener);
     let final_explore_sol = solutions.last().unwrap().clone();
 
-    terminator.set_timeout_from_now(compress_dur).reset_ctrlc();
-    let mut cmpr_separator = Separator::new(expl_separator.instance, expl_separator.prob, next_rng(), expl_separator.output_svg_folder, expl_separator.svg_counter, SEP_CFG_COMPRESS);
-    let cmpr_sol = compression_phase(&instance, &mut cmpr_separator, &final_explore_sol, &terminator);
+    terminator.new_timeout(compress_dur);
+    let mut cmpr_separator = Separator::new(
+        expl_separator.instance,
+        expl_separator.prob,
+        next_rng(),
+        SEP_CFG_COMPRESS,
+    );
+    let cmpr_sol = compression_phase(
+        &instance,
+        &mut cmpr_separator,
+        &final_explore_sol,
+        terminator,
+        sol_listener,
+    );
+
+    sol_listener.report(ReportType::Final, &cmpr_sol, &instance);
 
     cmpr_sol
 }
 
-pub fn exploration_phase(instance: &SPInstance, sep: &mut Separator, term: &Terminator) -> Vec<SPSolution> {
+pub fn exploration_phase(
+    instance: &SPInstance,
+    sep: &mut Separator,
+    term: &impl Terminator,
+    sol_listener: &mut impl SolutionListener,
+) -> Vec<SPSolution> {
     let mut current_width = sep.prob.strip_width();
     let mut best_width = current_width;
 
     let mut feasible_solutions = vec![sep.prob.save()];
 
-    sep.export_svg(None, "init", false);
-    info!("[EXPL] starting optimization with initial width: {:.3} ({:.3}%)",current_width,sep.prob.density() * 100.0);
+    sol_listener.report(ReportType::ExplFeas, &feasible_solutions[0], instance);
+    info!(
+        "[EXPL] starting optimization with initial width: {:.3} ({:.3}%)",
+        current_width,
+        sep.prob.density() * 100.0
+    );
 
     let mut solution_pool: Vec<(SPSolution, f32)> = vec![];
 
-    while !term.is_kill() {
-        let local_best = sep.separate(&term);
+    while !term.kill() {
+        let local_best = sep.separate(term, sol_listener);
         let total_loss = local_best.1.get_total_loss();
 
         if total_loss == 0.0 {
             //layout is successfully separated
             if current_width < best_width {
-                info!("[EXPL] new best at width: {:.3} ({:.3}%)",current_width,sep.prob.density() * 100.0);
+                info!(
+                    "[EXPL] feasible solution found! (width: {:.3}, dens: {:.3}%)",
+                    current_width,
+                    sep.prob.density() * 100.0
+                );
                 best_width = current_width;
                 feasible_solutions.push(local_best.0.clone());
-                sep.export_svg(Some(local_best.0.clone()), "expl_f", false);
+                sol_listener.report(ReportType::ExplFeas, &local_best.0, instance);
             }
             let next_width = current_width * (1.0 - EXPLORE_SHRINK_STEP);
-            info!("[EXPL] shrinking width by {}%: {:.3} -> {:.3}", EXPLORE_SHRINK_STEP * 100.0, current_width, next_width);
+            info!(
+                "[EXPL] shrinking strip by {}%: {:.3} -> {:.3}",
+                EXPLORE_SHRINK_STEP * 100.0,
+                current_width,
+                next_width
+            );
             sep.change_strip_width(next_width, None);
             current_width = next_width;
             solution_pool.clear();
         } else {
-            info!("[EXPL] layout separation unsuccessful, exporting min loss solution");
-            sep.export_svg(Some(local_best.0.clone()), "expl_nf", false);
+            info!(
+                "[EXPL] unable to reach feasibility (width: {:.3}, dens: {:.3}%, min loss: {:.3})",
+                current_width,
+                sep.prob.density() * 100.0,
+                FMT().fmt2(total_loss)
+            );
+            sol_listener.report(ReportType::ExplInfeas, &local_best.0, instance);
 
             //layout was not successfully separated, add to local bests
             match solution_pool.binary_search_by(|(_, o)| o.partial_cmp(&total_loss).unwrap()) {
@@ -91,7 +134,12 @@ pub fn exploration_phase(instance: &SPInstance, sep: &mut Separator, term: &Term
                 let selected_idx = (sample * solution_pool.len() as f32) as usize;
 
                 let (selected_sol, loss) = &solution_pool[selected_idx];
-                info!("[EXPL] selected starting solution {}/{} from solution pool (l: {})", selected_idx, solution_pool.len(), FMT().fmt2(*loss));
+                info!(
+                    "[EXPL] selected starting solution {}/{} from solution pool (l: {}) to disrupt",
+                    selected_idx,
+                    solution_pool.len(),
+                    FMT().fmt2(*loss)
+                );
                 selected_sol
             };
 
@@ -100,15 +148,27 @@ pub fn exploration_phase(instance: &SPInstance, sep: &mut Separator, term: &Term
         }
     }
 
-    info!("[EXPL] time limit reached, best solution found: {:.3} ({:.3}%)",best_width,feasible_solutions.last().unwrap().density(instance) * 100.0);
+    info!(
+        "[EXPL] terminating exploration phase, returning best feasible solution (width: {:.3}, dens: {:.3}%)",
+        best_width,
+        feasible_solutions.last().unwrap().density(instance) * 100.0
+    );
 
     feasible_solutions
 }
 
-pub fn compression_phase(instance: &SPInstance, sep: &mut Separator, init: &SPSolution, term: &Terminator) -> SPSolution {
+pub fn compression_phase(
+    instance: &SPInstance,
+    sep: &mut Separator,
+    init: &SPSolution,
+    term: &impl Terminator,
+    sol_listener: &mut impl SolutionListener,
+) -> SPSolution {
     let mut best = init.clone();
     let start = Instant::now();
-    let end = term.timeout.expect("compression running without timeout");
+    let end = term
+        .timeout_at()
+        .expect("compression phase cannot operate without timeout");
     let step_size = || -> f32 {
         //map the range [COMPRESS_SHRINK_RANGE.0, COMPRESS_SHRINK_RANGE.1] to timeout
         let range = COMPRESS_SHRINK_RANGE.1 - COMPRESS_SHRINK_RANGE.0;
@@ -117,24 +177,38 @@ pub fn compression_phase(instance: &SPInstance, sep: &mut Separator, init: &SPSo
         let ratio = elapsed.as_secs_f32() / (elapsed + remaining).as_secs_f32();
         COMPRESS_SHRINK_RANGE.0 + ratio * range
     };
-    while !term.is_kill() {
+    while !term.kill() {
         let step = step_size();
         info!("[CMPR] attempting {:.3}%", step * 100.0);
-        match attempt_to_compress(sep, &best, step, &term) {
+        match attempt_to_compress(sep, &best, step, term, sol_listener) {
             Some(compacted_sol) => {
-                info!("[CMPR] compressed to {:.3} ({:.3}%)", compacted_sol.strip_width(), compacted_sol.density(instance) * 100.0);
-                sep.export_svg(Some(compacted_sol.clone()), "cmpr", false);
+                info!(
+                    "[CMPR] successfully compressed to {:.3} ({:.3}%)",
+                    compacted_sol.strip_width(),
+                    compacted_sol.density(instance) * 100.0
+                );
+                sol_listener.report(ReportType::CmprFeas, &compacted_sol, instance);
                 best = compacted_sol;
             }
             None => {}
         }
     }
-    info!("[CMPR] finished compression, improved from {:.3}% to {:.3}% (+{:.3}%)", init.density(instance) * 100.0, best.density(instance) * 100.0, (best.density(instance) - init.density(instance)) * 100.0);
+    info!(
+        "[CMPR] finished compression, improved from {:.3}% to {:.3}% (+{:.3}%)",
+        init.density(instance) * 100.0,
+        best.density(instance) * 100.0,
+        (best.density(instance) - init.density(instance)) * 100.0
+    );
     best
 }
 
-
-fn attempt_to_compress(sep: &mut Separator, init: &SPSolution, r_shrink: f32, term: &Terminator) -> Option<SPSolution> {
+fn attempt_to_compress(
+    sep: &mut Separator,
+    init: &SPSolution,
+    r_shrink: f32,
+    term: &impl Terminator,
+    sol_listener: &mut impl SolutionListener,
+) -> Option<SPSolution> {
     //restore to the initial solution and width
     sep.change_strip_width(init.strip_width(), None);
     sep.rollback(&init, None);
@@ -145,7 +219,7 @@ fn attempt_to_compress(sep: &mut Separator, init: &SPSolution, r_shrink: f32, te
     sep.change_strip_width(new_width, Some(split_pos));
 
     //try to separate layout, if all collisions are eliminated, return the solution
-    let (compacted_sol, ot) = sep.separate(term);
+    let (compacted_sol, ot) = sep.separate(term, sol_listener);
     match ot.get_total_loss() == 0.0 {
         true => Some(compacted_sol),
         false => None,
@@ -177,7 +251,9 @@ fn disrupt_solution(sep: &mut Separator) {
         .instance
         .items
         .iter()
-        .sorted_by_key(|(item, _)| Reverse(OrderedFloat(item.shape_cd.surrogate().convex_hull_area)))
+        .sorted_by_key(|(item, _)| {
+            Reverse(OrderedFloat(item.shape_cd.surrogate().convex_hull_area))
+        })
         .peekable();
 
     let mut cumulative_ch_area = 0.0;
@@ -191,18 +267,28 @@ fn disrupt_solution(sep: &mut Separator) {
         cumulative_ch_area += item_ch_area * (*quantity as f32);
         if cumulative_ch_area > cutoff_threshold_area {
             ch_area_cutoff = item_ch_area;
-            debug!("[DSRP] cutoff ch area: {}, for item id: {}, bbox: {:?}",ch_area_cutoff, item.id, item.shape_cd.bbox);
+            debug!(
+                "[DSRP] cutoff ch area: {}, for item id: {}, bbox: {:?}",
+                ch_area_cutoff, item.id, item.shape_cd.bbox
+            );
             break;
         }
     }
 
     // Step 2: Select two 'large' items and 'swap' them.
 
-    let large_items = sep.prob.layout.placed_items.iter()
+    let large_items = sep
+        .prob
+        .layout
+        .placed_items
+        .iter()
         .filter(|(_, pi)| pi.shape.surrogate().convex_hull_area >= ch_area_cutoff);
 
     //Choose a first item with a large enough convex hull
-    let (pk1, pi1) = large_items.clone().choose(&mut sep.rng).expect("[DSRP] failed to choose first item");
+    let (pk1, pi1) = large_items
+        .clone()
+        .choose(&mut sep.rng)
+        .expect("[DSRP] failed to choose first item");
 
     //Choose a second item with a large enough convex hull and different enough from the first.
     //If no such item is found, choose a random one.
@@ -229,49 +315,59 @@ fn disrupt_solution(sep: &mut Separator) {
     let dt1_new = convert_sample_to_closest_feasible(dt2_old, sep.prob.instance.item(pi1.item_id));
     let dt2_new = convert_sample_to_closest_feasible(dt1_old, sep.prob.instance.item(pi2.item_id));
 
-    info!("[EXPL] swapped two large items (ids: {} <-> {})", pi1.item_id, pi2.item_id);
+    info!(
+        "[EXPL] swapped two large items (ids: {} <-> {})",
+        pi1.item_id, pi2.item_id
+    );
 
     let pk1 = sep.move_item(pk1, dt1_new);
     let pk2 = sep.move_item(pk2, dt2_new);
 
-
     // Step 4: Move all items that are practically contained by one of the swapped items to the "empty space" created by the moved item.
-    //         This is particularly important when huge items are swapped with smaller items. 
-    //         The huge item will create a large empty space and many of the items which previously 
+    //         This is particularly important when huge items are swapped with smaller items.
+    //         The huge item will create a large empty space and many of the items which previously
     //         surrounded the smaller one will be contained by the huge one.
     {
         // transformation to convert the contained items' position (relative to the old and new positions of the swapped items)
-        let converting_transformation = dt1_new.compose().inverse()
-            .transform(&dt1_old.compose());
+        let converting_transformation = dt1_new.compose().inverse().transform(&dt1_old.compose());
 
-        for c1_pk in practically_contained_items(&sep.prob.layout, pk1).into_iter().filter(|c1_pk| *c1_pk != pk2) {
+        for c1_pk in practically_contained_items(&sep.prob.layout, pk1)
+            .into_iter()
+            .filter(|c1_pk| *c1_pk != pk2)
+        {
             let c1_pi = &sep.prob.layout.placed_items[c1_pk];
 
-            let new_dt = c1_pi.d_transf
+            let new_dt = c1_pi
+                .d_transf
                 .compose()
                 .transform(&converting_transformation)
                 .decompose();
 
             //Ensure the sure the new position is feasible
-            let new_feasible_dt = convert_sample_to_closest_feasible(new_dt, sep.prob.instance.item(c1_pi.item_id));
+            let new_feasible_dt =
+                convert_sample_to_closest_feasible(new_dt, sep.prob.instance.item(c1_pi.item_id));
             sep.move_item(c1_pk, new_feasible_dt);
         }
     }
 
     // Do the same for the second item, but using the second transformation
     {
-        let converting_transformation = dt2_new.compose().inverse()
-            .transform(&dt2_old.compose());
+        let converting_transformation = dt2_new.compose().inverse().transform(&dt2_old.compose());
 
-        for c2_pk in practically_contained_items(&sep.prob.layout, pk2).into_iter().filter(|c2_pk| *c2_pk != pk1) {
+        for c2_pk in practically_contained_items(&sep.prob.layout, pk2)
+            .into_iter()
+            .filter(|c2_pk| *c2_pk != pk1)
+        {
             let c2_pi = &sep.prob.layout.placed_items[c2_pk];
-            let new_dt = c2_pi.d_transf
+            let new_dt = c2_pi
+                .d_transf
                 .compose()
                 .transform(&converting_transformation)
                 .decompose();
 
             //make sure the new position is feasible
-            let new_feasible_dt = convert_sample_to_closest_feasible(new_dt, sep.prob.instance.item(c2_pi.item_id));
+            let new_feasible_dt =
+                convert_sample_to_closest_feasible(new_dt, sep.prob.instance.item(c2_pi.item_id));
             sep.move_item(c2_pk, new_feasible_dt);
         }
     }
@@ -282,15 +378,16 @@ fn practically_contained_items(layout: &Layout, pk_c: PItemKey) -> Vec<PItemKey>
     let pi_c = &layout.placed_items[pk_c];
     // Detect all collisions with the item pk_c's shape.
     let mut collector = SecondaryMap::new();
-    layout.cde().collect_poly_collisions(&pi_c.shape, &mut collector);
+    layout
+        .cde()
+        .collect_poly_collisions(&pi_c.shape, &mut collector);
 
     // Filter out the items that have their POI contained by pk_c's shape.
-    collector.iter()
-        .filter_map(|(_,he)| {
-            match he {
-                HazardEntity::PlacedItem { pk, .. } => Some(*pk),
-                _ => None
-            }
+    collector
+        .iter()
+        .filter_map(|(_, he)| match he {
+            HazardEntity::PlacedItem { pk, .. } => Some(*pk),
+            _ => None,
         })
         .filter(|pk| *pk != pk_c) // Ensure we don't include the item itself
         .filter(|pk| {

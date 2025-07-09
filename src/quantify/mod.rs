@@ -36,7 +36,7 @@ pub fn quantify_collision_poly_container(s: &SPolygon, c_bbox: Rect) -> f32 {
     let overlap = match Rect::intersection(s_bbox, c_bbox) {
         Some(r) => {
             //intersection exist, calculate the area of the intersection (+ a small value to ensure it is never zero)
-            let negative_area = (s_bbox.area() - r.area()) + 0.001 * s_bbox.area();
+            let negative_area = (s_bbox.area() - r.area()) + 0.0001 * s_bbox.area();
             negative_area
         }
         None => {
@@ -46,7 +46,7 @@ pub fn quantify_collision_poly_container(s: &SPolygon, c_bbox: Rect) -> f32 {
     };
     debug_assert!(overlap.is_normal());
 
-    let penalty = s.surrogate().convex_hull_area;
+    let penalty = calc_shape_penalty(s, s);
 
-    10.0 * (overlap * penalty).sqrt()
+    2.0 * overlap.sqrt() * penalty
 }

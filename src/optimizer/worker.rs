@@ -30,7 +30,7 @@ impl SeparatorWorker {
         self.ct = ct.clone();
     }
 
-    pub fn separate(&mut self) -> SepStats {
+    pub fn move_colliding_items(&mut self) -> SepStats {
         //collect all colliding items and shuffle them
         let candidates = self.prob.layout.placed_items.keys()
             .filter(|pk| self.ct.get_loss(*pk) > 0.0)
