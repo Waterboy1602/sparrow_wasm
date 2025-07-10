@@ -1,5 +1,6 @@
 use crate::util::terminator::Terminator;
 use crate::{Duration, Instant};
+#[cfg(not(target_arch = "wasm32"))]
 use log::warn;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
