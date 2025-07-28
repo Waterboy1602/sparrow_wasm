@@ -29,7 +29,7 @@ pub const SND_REFINE_CD_R_STEPS: (f32, f32) = (f32::to_radians(0.5), f32::to_rad
 pub const UNIQUE_SAMPLE_THRESHOLD: f32 = 0.05;
 
 pub const DEFAULT_EXPLORE_TIME_RATIO: f32 = 0.8;
-pub const DEFAULT_COMPRESS_TIME_RATIO: f32 = 1.0 - 0.2;
+pub const DEFAULT_COMPRESS_TIME_RATIO: f32 = 0.2;
 
 pub const DEFAULT_MAX_CONSEQ_FAILS_EXPL: usize = 10;
 

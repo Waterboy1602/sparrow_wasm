@@ -48,6 +48,8 @@ fn main() -> Result<()>{
         },
         _ => bail!("invalid cli pattern (clap should have caught this)"),
     };
+    config.expl_cfg.time_limit = explore_dur;
+    config.cmpr_cfg.time_limit = compress_dur;
     if args.early_termination {
         config.expl_cfg.max_conseq_failed_attempts = Some(DEFAULT_MAX_CONSEQ_FAILS_EXPL);
         config.cmpr_cfg.shrink_decay = ShrinkDecayStrategy::FailureBased(DEFAULT_FAIL_DECAY_RATIO_CMPR);
