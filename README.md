@@ -12,7 +12,7 @@
 
 ### The state-of-the-art nesting heuristic for 2D irregular strip packing
 `sparrow` can be used to solve 2D irregular strip packing problems, also commonly referred to as nesting problems.
-This optimization algorithm builds on [`jagua-rs`](https://github.com/JeroenGar/jagua-rs): a collision detection engine for 2D irregular cutting & packing problems.
+This optimization algorithm builds on [`jagua-rs`](https://github.com/JeroenGar/jagua-rs): _a collision detection engine for 2D irregular cutting & packing problems_.
 
 ## Nested by `sparrow`
 <p align="center">
@@ -34,23 +34,28 @@ This optimization algorithm builds on [`jagua-rs`](https://github.com/JeroenGar/
 
 ## Usage
 
-General usage:
+**General usage:**
 ```bash
 cargo run --release  -- \
     -i [path to input JSON] \
     -t [timelimit in seconds (default is 600s)]
 ```
-By default 80% of the time is spent exploring and 20% is spent compressing.
-Alternatively, it is also possible explicitly define explore and compression times:
-```bash
-cargo run --release  -- \
-    -i [path to input JSON] \
-    -e [explore time in seconds] \
-    -c [compression time in seconds]
-```
-Pressing 'Ctrl + C' immediately moves the algorithm to the next phase.
+The optimization process contains two distinct phases: exploration & compression.
+By default 80% of the timelimit is spent exploring and 20% is spent compressing.
+Pressing 'Ctrl + C' immediately moves the algorithm to the next phase, or terminates it.
 
-Concrete example:
+**All CLI options:**
+```bash
+-i, --input <INPUT>              Path to the input JSON file
+-t, --global-time <GLOBAL_TIME>  Set a global time limit (in seconds)
+-e, --exploration <EXPLORATION>  Set the exploration phase time limit (in seconds)
+-c, --compression <COMPRESSION>  Set the compression phase time limit (in seconds)
+-x, --early-termination          Enable early termination of the optimization process
+-s, --rng-seed <RNG_SEED>        Fixed seed for the random number generator
+-h, --help                       Print help
+```
+
+**Concrete example**:
 ```bash
 cargo run --release -- \
     -i data/input/swim.json
@@ -105,7 +110,8 @@ The final solution is saved both in SVG and JSON format in `output/final_{name}.
 
 ## Targeting maximum performance
 
-Make sure `target-cpu=native` compiler flag is set, 
+This crate is highly optimized and is floating-point heavy.
+To enable the maximum performance, make sure `target-cpu=native` compiler flag is set, 
 switch to the nightly toolchain (required for [SIMD](https://doc.rust-lang.org/std/simd/index.html) support) 
 and enable the `simd` feature:
 
@@ -134,6 +140,10 @@ cargo run --profile debug-release -- \
 All solutions from the comparative experiments in [TBA] can be found at
 [data/experiments](data/experiments).
 The accompanying [README](data/experiments/README.md) details how to perform an exact reproduction of any benchmark run.
+
+## Related Projects
+
+- [`spyrrow`](https://github.com/PaulDL-RS/spyrrow): a Python wrapper of `sparrow`
 
 ## Development
 

@@ -10,49 +10,69 @@ use sparrow::util::io;
 use sparrow::util::io::{MainCli, SPOutput};
 use std::fs;
 use std::path::Path;
+use std::time::Duration;
 
 use jagua_rs::io::import::Importer;
-use jagua_rs::io::svg::s_layout_to_svg;
 use sparrow::EPOCH;
 
 use anyhow::{Result, bail};
-
+use sparrow::consts::{
+    DEFAULT_COMPRESS_TIME_RATIO, DEFAULT_EXPLORE_TIME_RATIO, DEFAULT_FAIL_DECAY_RATIO_CMPR,
+    DEFAULT_MAX_CONSEQ_FAILS_EXPL, LOG_LEVEL_FILTER_DEBUG, LOG_LEVEL_FILTER_RELEASE,
+};
 use sparrow::util::ctrlc_terminator::CtrlCTerminator;
 use sparrow::util::svg_exporter::SvgExporter;
-use std::time::Duration;
+
+pub const OUTPUT_DIR: &str = "output";
+
+pub const LIVE_DIR: &str = "data/live";
 
 fn main() -> Result<()> {
+    let mut config = DEFAULT_SPARROW_CONFIG;
+
     fs::create_dir_all(OUTPUT_DIR)?;
+    let log_file_path = format!("{}/log.txt", OUTPUT_DIR);
     match cfg!(debug_assertions) {
-        true => io::init_logger(LOG_LEVEL_FILTER_DEBUG)?,
-        false => io::init_logger(LOG_LEVEL_FILTER_RELEASE)?,
+        true => io::init_logger(LOG_LEVEL_FILTER_DEBUG, Path::new(&log_file_path))?,
+        false => io::init_logger(LOG_LEVEL_FILTER_RELEASE, Path::new(&log_file_path))?,
     }
 
     let args = MainCli::parse();
     let input_file_path = &args.input;
     let (explore_dur, compress_dur) = match (args.global_time, args.exploration, args.compression) {
         (Some(gt), None, None) => (
-            Duration::from_secs(gt).mul_f32(EXPLORE_TIME_RATIO),
-            Duration::from_secs(gt).mul_f32(COMPRESS_TIME_RATIO),
+            Duration::from_secs(gt).mul_f32(DEFAULT_EXPLORE_TIME_RATIO),
+            Duration::from_secs(gt).mul_f32(DEFAULT_COMPRESS_TIME_RATIO),
         ),
         (None, Some(et), Some(ct)) => (Duration::from_secs(et), Duration::from_secs(ct)),
         (None, None, None) => {
-            warn!("[MAIN] No time limit specified");
+            warn!("[MAIN] no time limit specified");
             (
-                Duration::from_secs(600).mul_f32(EXPLORE_TIME_RATIO),
-                Duration::from_secs(600).mul_f32(COMPRESS_TIME_RATIO),
+                Duration::from_secs(600).mul_f32(DEFAULT_EXPLORE_TIME_RATIO),
+                Duration::from_secs(600).mul_f32(DEFAULT_COMPRESS_TIME_RATIO),
             )
         }
         _ => bail!("invalid cli pattern (clap should have caught this)"),
     };
+    config.expl_cfg.time_limit = explore_dur;
+    config.cmpr_cfg.time_limit = compress_dur;
+    if args.early_termination {
+        config.expl_cfg.max_conseq_failed_attempts = Some(DEFAULT_MAX_CONSEQ_FAILS_EXPL);
+        config.cmpr_cfg.shrink_decay =
+            ShrinkDecayStrategy::FailureBased(DEFAULT_FAIL_DECAY_RATIO_CMPR);
+        warn!("[MAIN] early termination enabled!");
+    }
+    if let Some(arg_rng_seed) = args.rng_seed {
+        config.rng_seed = Some(arg_rng_seed as usize);
+    }
 
     info!(
-        "[MAIN] Configured to explore for {}s and compress for {}s",
+        "[MAIN] configured to explore for {}s and compress for {}s",
         explore_dur.as_secs(),
         compress_dur.as_secs()
     );
 
-    let rng = match RNG_SEED {
+    let rng = match config.rng_seed {
         Some(seed) => {
             info!("[MAIN] using seed: {}", seed);
             SmallRng::seed_from_u64(seed as u64)
@@ -68,7 +88,11 @@ fn main() -> Result<()> {
 
     let ext_instance = io::read_spp_instance_json(Path::new(&input_file_path))?;
 
-    let importer = Importer::new(CDE_CONFIG, SIMPL_TOLERANCE, MIN_ITEM_SEPARATION);
+    let importer = Importer::new(
+        config.cde_config,
+        config.poly_simpl_tolerance,
+        config.min_item_separation,
+    );
     let instance = jagua_rs::probs::spp::io::import(&importer, &ext_instance)?;
 
     info!(
@@ -100,31 +124,16 @@ fn main() -> Result<()> {
         rng,
         &mut svg_exporter,
         &mut ctrlc_terminator,
-        explore_dur,
-        compress_dur,
+        &config.expl_cfg,
+        &config.cmpr_cfg,
     );
 
-    {
-        let svg = s_layout_to_svg(&solution.layout_snapshot, &instance, DRAW_OPTIONS, "final");
-        io::write_svg(
-            &svg,
-            Path::new(format!("{OUTPUT_DIR}/final_{}.svg", ext_instance.name).as_str()),
-            Level::Info,
-        )?;
-        if cfg!(feature = "live_svg") {
-            io::write_svg(
-                &svg,
-                Path::new(format!("{LIVE_DIR}/.live_solution.svg").as_str()),
-                Level::Trace,
-            )?;
-        }
-        let json_path = format!("{OUTPUT_DIR}/final_{}.json", ext_instance.name);
-        let json_output = SPOutput {
-            instance: ext_instance,
-            solution: jagua_rs::probs::spp::io::export(&instance, &solution, *EPOCH),
-        };
-        io::write_json(&json_output, Path::new(json_path.as_str()), Level::Info)?;
-    }
+    let json_path = format!("{OUTPUT_DIR}/final_{}.json", ext_instance.name);
+    let json_output = SPOutput {
+        instance: ext_instance,
+        solution: jagua_rs::probs::spp::io::export(&instance, &solution, *EPOCH),
+    };
+    io::write_json(&json_output, Path::new(json_path.as_str()), Level::Info)?;
 
     Ok(())
 }

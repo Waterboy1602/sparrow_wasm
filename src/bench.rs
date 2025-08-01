@@ -1,5 +1,5 @@
-use sparrow::util::terminator::Terminator;
 extern crate core;
+use sparrow::util::terminator::Terminator;
 
 use ordered_float::OrderedFloat;
 use rand::prelude::SmallRng;
@@ -7,7 +7,6 @@ use rand::{Rng, RngCore, SeedableRng};
 use sparrow::config::*;
 use sparrow::optimizer::lbf::LBFBuilder;
 use sparrow::optimizer::separator::Separator;
-use sparrow::optimizer::{compression_phase, exploration_phase};
 use sparrow::util::io;
 use std::env::args;
 use std::fs;
@@ -17,10 +16,17 @@ use std::time::{Duration, Instant};
 use anyhow::Result;
 use jagua_rs::io::import::Importer;
 use jagua_rs::io::svg::s_layout_to_svg;
+use sparrow::consts::{DEFAULT_COMPRESS_TIME_RATIO, DEFAULT_EXPLORE_TIME_RATIO, DRAW_OPTIONS, LBF_SAMPLE_CONFIG};
+use sparrow::optimizer::compress::compression_phase;
+use sparrow::optimizer::explore::exploration_phase;
 use sparrow::util::listener::DummySolListener;
 use sparrow::util::terminator::BasicTerminator;
 
+pub const OUTPUT_DIR: &str = "output";
+
 fn main() -> Result<()> {
+    let config = DEFAULT_SPARROW_CONFIG;
+
     //the input file is the first argument
     let input_file_path = args().nth(1).expect("first argument must be the input file");
     let time_limit: Duration = args().nth(2).expect("second argument must be the time limit [s]")
@@ -30,11 +36,11 @@ fn main() -> Result<()> {
         .parse().expect("third argument must be the number of runs");
 
     fs::create_dir_all(OUTPUT_DIR).expect("could not create output directory");
-    
+
     println!("[BENCH] git commit hash: {}", get_git_commit_hash());
     println!("[BENCH] system time: {}", jiff::Timestamp::now());
 
-    let mut rng = match RNG_SEED {
+    let mut rng = match config.rng_seed {
         Some(seed) => {
             println!("[BENCH] using provided seed: {}", seed);
             SmallRng::seed_from_u64(seed as u64)
@@ -46,7 +52,7 @@ fn main() -> Result<()> {
         }
     };
 
-    let n_runs_per_iter = (num_cpus::get_physical() / SEP_CFG_EXPLORE.n_workers).min(n_runs_total);
+    let n_runs_per_iter = (num_cpus::get_physical() / config.expl_cfg.separator_config.n_workers).min(n_runs_total);
     let n_batches = (n_runs_total as f32 / n_runs_per_iter as f32).ceil() as usize;
 
     let ext_intance = io::read_spp_instance_json(Path::new(&input_file_path))?;
@@ -56,7 +62,7 @@ fn main() -> Result<()> {
         ext_intance.name, n_batches, n_runs_per_iter, num_cpus::get_physical(), time_limit
     );
 
-    let importer = Importer::new(CDE_CONFIG, SIMPL_TOLERANCE, MIN_ITEM_SEPARATION);
+    let importer = Importer::new(config.cde_config, config.poly_simpl_tolerance, config.min_item_separation);
     let instance = jagua_rs::probs::spp::io::import(&importer, &ext_intance)?;
 
     let mut final_solutions = vec![];
@@ -76,21 +82,21 @@ fn main() -> Result<()> {
                 s.spawn(move |_| {
                     let mut next_rng = || SmallRng::seed_from_u64(rng.next_u64());
                     let builder = LBFBuilder::new(instance.clone(), next_rng(), LBF_SAMPLE_CONFIG).construct();
-                    let mut expl_separator = Separator::new(builder.instance, builder.prob, next_rng(), SEP_CFG_EXPLORE);
+                    let mut expl_separator = Separator::new(builder.instance, builder.prob, next_rng(), config.expl_cfg.separator_config);
 
-                    terminator.new_timeout(time_limit.mul_f32(EXPLORE_TIME_RATIO));
-                    let solutions = exploration_phase(&instance, &mut expl_separator, &terminator, &mut DummySolListener);
+                    terminator.new_timeout(time_limit.mul_f32(DEFAULT_EXPLORE_TIME_RATIO));
+                    let solutions = exploration_phase(&instance, &mut expl_separator, &mut DummySolListener, &terminator, &config.expl_cfg);
                     let final_explore_sol = solutions.last().expect("no solutions found during exploration");
 
                     let start_comp = Instant::now();
 
-                    terminator.new_timeout(time_limit.mul_f32(COMPRESS_TIME_RATIO));
-                    let mut cmpr_separator = Separator::new(expl_separator.instance, expl_separator.prob, next_rng(), SEP_CFG_COMPRESS);
-                    let cmpr_sol = compression_phase(&instance, &mut cmpr_separator, final_explore_sol, &terminator, &mut DummySolListener);
+                    terminator.new_timeout(time_limit.mul_f32(DEFAULT_COMPRESS_TIME_RATIO));
+                    let mut cmpr_separator = Separator::new(expl_separator.instance, expl_separator.prob, next_rng(), config.cmpr_cfg.separator_config);
+                    let cmpr_sol = compression_phase(&instance, &mut cmpr_separator, final_explore_sol, &mut DummySolListener, &terminator, &config.cmpr_cfg);
 
                     println!("[BENCH] [id:{:>3}] finished, expl: {:.3}% ({}s), cmpr: {:.3}% (+{:.3}%) ({}s)",
                              bench_idx,
-                             final_explore_sol.density(&instance) * 100.0, time_limit.mul_f32(EXPLORE_TIME_RATIO).as_secs(),
+                             final_explore_sol.density(&instance) * 100.0, time_limit.mul_f32(DEFAULT_EXPLORE_TIME_RATIO).as_secs(),
                              cmpr_sol.density(&instance) * 100.0,
                              cmpr_sol.density(&instance) * 100.0 - final_explore_sol.density(&instance) * 100.0,
                              start_comp.elapsed().as_secs()
@@ -150,7 +156,7 @@ fn main() -> Result<()> {
     println!("stddev: {:.3}", calculate_stddev(&final_usages));
     println!("======================");
     println!("[BENCH] system time: {}", jiff::Timestamp::now());
-    
+
     Ok(())
 }
 

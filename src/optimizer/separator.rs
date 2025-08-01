@@ -19,6 +19,7 @@ use rayon::ThreadPool;
 use rayon::iter::IntoParallelRefMutIterator;
 use rayon::iter::ParallelIterator;
 
+#[derive(Debug, Clone, Copy)]
 pub struct SeparatorConfig {
     pub iter_no_imprv_limit: usize,
     pub strike_limit: usize,
@@ -171,8 +172,8 @@ impl Separator {
         let secs = start.elapsed().as_secs_f32();
         log!(
             self.config.log_level,
-            "[SEP] finished, evals/s: {}, evals/move: {}, moves/s: {}, iter/s: {}, #workers: {}, total {:.3}s",
-            FMT().fmt2(sep_stats.total_evals as f32 / secs),
+            "[SEP] finished, evals/s: {} K, evals/move: {}, moves/s: {}, iter/s: {}, #workers: {}, total {:.3}s",
+            (sep_stats.total_evals as f32 / (1000.0 * secs)) as usize,
             FMT().fmt2(sep_stats.total_evals as f32 / sep_stats.total_moves as f32),
             FMT().fmt2(sep_stats.total_moves as f32 / secs),
             FMT().fmt2(n_iter as f32 / secs),

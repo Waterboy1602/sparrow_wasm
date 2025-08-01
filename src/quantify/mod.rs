@@ -1,6 +1,6 @@
 use jagua_rs::geometry::geo_traits::DistanceTo;
 use jagua_rs::geometry::primitives::{Rect, SPolygon};
-use crate::config::OVERLAP_PROXY_EPSILON_DIAM_RATIO;
+use crate::consts::OVERLAP_PROXY_EPSILON_DIAM_RATIO;
 use crate::quantify::overlap_proxy::overlap_area_proxy;
 
 pub mod overlap_proxy;

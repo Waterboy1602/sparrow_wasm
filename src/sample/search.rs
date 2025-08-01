@@ -1,7 +1,7 @@
 use jagua_rs::entities::{Item, Layout, PItemKey};
 use jagua_rs::geometry::DTransformation;
 use jagua_rs::geometry::geo_enums::RotationRange;
-use crate::config::{SND_REFINE_CD_TL_RATIOS, PRE_REFINE_CD_TL_RATIOS, UNIQUE_SAMPLE_THRESHOLD, PRE_REFINE_CD_R_STEPS, SND_REFINE_CD_R_STEPS};
+use crate::consts::{SND_REFINE_CD_TL_RATIOS, PRE_REFINE_CD_TL_RATIOS, UNIQUE_SAMPLE_THRESHOLD, PRE_REFINE_CD_R_STEPS, SND_REFINE_CD_R_STEPS};
 use crate::eval::sample_eval::{SampleEval, SampleEvaluator};
 use crate::sample::best_samples::BestSamples;
 use crate::sample::coord_descent::{refine_coord_desc, CDConfig};

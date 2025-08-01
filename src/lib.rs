@@ -1,5 +1,6 @@
 #![cfg_attr(feature = "simd", feature(portable_simd))]
 #![allow(const_item_mutation)]
+#![allow(unused_imports)]
 
 use numfmt::{Formatter, Precision, Scales};
 use std::sync::LazyLock;
@@ -9,6 +10,7 @@ pub use std::time::{Duration, Instant};
 pub use web_time::{Duration, Instant};
 
 pub mod config;
+pub mod consts;
 pub mod eval;
 pub mod optimizer;
 pub mod quantify;

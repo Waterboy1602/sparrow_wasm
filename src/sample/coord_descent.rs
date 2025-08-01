@@ -1,4 +1,4 @@
-use crate::config::{CD_STEP_FAIL, CD_STEP_SUCCESS};
+use crate::consts::{CD_STEP_FAIL, CD_STEP_SUCCESS};
 use crate::eval::sample_eval::{SampleEval, SampleEvaluator};
 use jagua_rs::geometry::DTransformation;
 use log::trace;

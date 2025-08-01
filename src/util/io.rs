@@ -8,7 +8,6 @@ use svg::Document;
 use anyhow::{Context, Result};
 use clap::Parser;
 use jagua_rs::probs::spp::io::ext_repr::{ExtSPInstance, ExtSPSolution};
-use crate::config::{OUTPUT_DIR};
 use crate::EPOCH;
 
 #[derive(Parser)]
@@ -28,6 +27,13 @@ pub struct MainCli {
     /// Compression time limit in seconds (requires exploration time)
     #[arg(short = 'c', long, requires = "exploration", help = "Set the compression phase time limit (in seconds)")]
     pub compression: Option<u64>,
+
+    /// Enable early and automatic termination
+    #[arg(short = 'x', long, help = "Enable early termination of the optimization process")]
+    pub early_termination: bool,
+
+    #[arg(short = 's', long, help = "Fixed seed for the random number generator")]
+    pub rng_seed: Option<u64>,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -37,9 +43,9 @@ pub struct SPOutput {
     pub solution: ExtSPSolution,
 }
 
-pub fn init_logger(level_filter: LevelFilter) -> Result<()> {
+pub fn init_logger(level_filter: LevelFilter, log_file_path: &Path) -> Result<()> {
     //remove old log file
-    let _ = fs::remove_file(format!("{}/log.txt", OUTPUT_DIR));
+    let _ = fs::remove_file(log_file_path);
     fern::Dispatch::new()
         // Perform allocation-free log formatting
         .format(|out, message, record| {
@@ -65,7 +71,7 @@ pub fn init_logger(level_filter: LevelFilter) -> Result<()> {
         // Add blanket level filter -
         .level(level_filter)
         .chain(std::io::stdout())
-        .chain(fern::log_file(format!("{OUTPUT_DIR}/log.txt"))?)
+        .chain(fern::log_file(log_file_path)?)
         .apply()?;
     log!(
         Level::Info,

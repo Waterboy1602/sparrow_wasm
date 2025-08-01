@@ -1,4 +1,4 @@
-use crate::config::OVERLAP_PROXY_EPSILON_DIAM_RATIO;
+use crate::consts::OVERLAP_PROXY_EPSILON_DIAM_RATIO;
 use crate::quantify::calc_shape_penalty;
 use crate::quantify::simd::circles_soa::CirclesSoA;
 use crate::quantify::simd::overlap_proxy_simd::poles_overlap_area_proxy_simd;
