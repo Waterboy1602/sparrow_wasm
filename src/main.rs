@@ -77,7 +77,7 @@ fn main() -> Result<()>{
 
     let ext_instance = io::read_spp_instance_json(Path::new(&input_file_path))?;
 
-    let importer = Importer::new(config.cde_config, config.poly_simpl_tolerance, config.min_item_separation);
+    let importer = Importer::new(config.cde_config, config.poly_simpl_tolerance, config.min_item_separation, config.narrow_concavity_cutoff_ratio);
     let instance = jagua_rs::probs::spp::io::import(&importer, &ext_instance)?;
 
     info!("[MAIN] loaded instance {} with #{} items", ext_instance.name, instance.total_item_qty());
