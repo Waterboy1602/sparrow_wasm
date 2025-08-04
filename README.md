@@ -141,6 +141,10 @@ All solutions from the comparative experiments in [TBA] can be found at
 [data/experiments](data/experiments).
 The accompanying [README](data/experiments/README.md) details how to perform an exact reproduction of any benchmark run.
 
+## Related Projects
+
+- [`spyrrow`](https://github.com/PaulDL-RS/spyrrow): a Python wrapper of `sparrow`
+
 ## Development
 
 This repo is meant to remain a faithful representation of the algorithm described in [TBA].
