@@ -25,7 +25,7 @@ use sparrow::util::terminator::BasicTerminator;
 pub const OUTPUT_DIR: &str = "output";
 
 fn main() -> Result<()> {
-    let config = DEFAULT_SPARROW_CONFIG;
+    let mut config = DEFAULT_SPARROW_CONFIG;
 
     //the input file is the first argument
     let input_file_path = args().nth(1).expect("first argument must be the input file");
@@ -51,6 +51,9 @@ fn main() -> Result<()> {
             SmallRng::seed_from_u64(seed)
         }
     };
+
+    config.expl_cfg.time_limit = time_limit.mul_f32(DEFAULT_EXPLORE_TIME_RATIO);
+    config.cmpr_cfg.time_limit = time_limit.mul_f32(DEFAULT_COMPRESS_TIME_RATIO);
 
     let n_runs_per_iter = (num_cpus::get_physical() / config.expl_cfg.separator_config.n_workers).min(n_runs_total);
     let n_batches = (n_runs_total as f32 / n_runs_per_iter as f32).ceil() as usize;
@@ -84,13 +87,13 @@ fn main() -> Result<()> {
                     let builder = LBFBuilder::new(instance.clone(), next_rng(), LBF_SAMPLE_CONFIG).construct();
                     let mut expl_separator = Separator::new(builder.instance, builder.prob, next_rng(), config.expl_cfg.separator_config);
 
-                    terminator.new_timeout(time_limit.mul_f32(DEFAULT_EXPLORE_TIME_RATIO));
+                    terminator.new_timeout(config.expl_cfg.time_limit);
                     let solutions = exploration_phase(&instance, &mut expl_separator, &mut DummySolListener, &terminator, &config.expl_cfg);
                     let final_explore_sol = solutions.last().expect("no solutions found during exploration");
 
                     let start_comp = Instant::now();
 
-                    terminator.new_timeout(time_limit.mul_f32(DEFAULT_COMPRESS_TIME_RATIO));
+                    terminator.new_timeout(config.cmpr_cfg.time_limit);
                     let mut cmpr_separator = Separator::new(expl_separator.instance, expl_separator.prob, next_rng(), config.cmpr_cfg.separator_config);
                     let cmpr_sol = compression_phase(&instance, &mut cmpr_separator, final_explore_sol, &mut DummySolListener, &terminator, &config.cmpr_cfg);
 
