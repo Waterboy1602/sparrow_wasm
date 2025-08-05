@@ -21,10 +21,10 @@ pub fn compression_phase(
 
     let shrink_step_size = |n_failed_attempts: i32| -> f32 {
         match config.shrink_decay {
-            ShrinkDecayStrategy::TimeBased(end) => {
+            ShrinkDecayStrategy::TimeBased => {
                 let range = config.shrink_range.1 - config.shrink_range.0;
                 let elapsed = start.elapsed();
-                let ratio = elapsed.as_secs_f32() / end.as_secs_f32();
+                let ratio = elapsed.as_secs_f32() / config.time_limit.as_secs_f32();
                 config.shrink_range.0 + ratio * range
             }
             ShrinkDecayStrategy::FailureBased(r) => {
