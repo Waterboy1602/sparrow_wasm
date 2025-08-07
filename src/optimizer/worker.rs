@@ -72,6 +72,9 @@ impl SeparatorWorker {
 
         let (old_l, old_w_l) = (self.ct.get_loss(pk), self.ct.get_weighted_loss(pk));
 
+        debug_assert!(old_l > 0.0, "Item with key {:?} should be colliding, but has no loss: {}", pk, FMT().fmt2(old_l));
+        debug_assert!(old_w_l > 0.0, "Item with key {:?} should be colliding, but has no weighted loss: {}", pk, FMT().fmt2(old_w_l));
+
         //modify the problem, by removing the item and placing it in the new position
         let old_placement = self.prob.remove_item(pk);
         let new_placement = SPPlacement { d_transf, item_id: item.id };
