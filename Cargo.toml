@@ -13,6 +13,10 @@ path = "src/main.rs"
 name = "bench"
 path = "src/bench.rs"
 
+[[bin]]
+name = "bench-wasm"
+path = "src/bench_wasm.rs"
+
 [dependencies]
 #jagua-rs = { features = ["spp"], git = "https://github.com/JeroenGar/jagua-rs.git", rev = "6e47329e4fd8dfe014428bd9045db132d26d35c9", default-features = false}
 #jagua-rs = { features = ["spp"], path = "../jagua-rs/jagua-rs" }
