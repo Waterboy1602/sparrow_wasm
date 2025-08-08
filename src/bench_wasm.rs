@@ -9,9 +9,10 @@ use sparrow::optimizer::separator::Separator;
 use sparrow::util::io;
 use std::env::args;
 use std::fs;
-use std::io::{self as std_io, BufRead};
+use std::io::{self as std_io, BufRead, Write};
 use std::path::Path;
 use std::time::{Duration, Instant};
+use sysinfo::System;
 
 use anyhow::Result;
 use jagua_rs::io::import::Importer;
@@ -55,7 +56,9 @@ fn main() -> Result<()> {
     let log_file_path = format!("{}/bench_log.txt", OUTPUT_DIR);
     io::init_logger(LOG_LEVEL_FILTER_RELEASE, Path::new(&log_file_path))?;
 
-    println!("[BENCH] git commit hash: {}", get_git_commit_hash());
+    let start_time = Instant::now();
+    let git_commit_hash = get_git_commit_hash();
+    println!("[BENCH] git commit hash: {}", git_commit_hash);
     println!("[BENCH] system time: {}", jiff::Timestamp::now());
 
     config.rng_seed = Some(8780830896941405304);
@@ -143,12 +146,54 @@ fn main() -> Result<()> {
         final_solutions.extend(iter_solutions.into_iter().flatten());
     }
 
+    let elapsed_time = start_time.elapsed().as_millis();
     println!("==== BENCH FINISHED ====");
 
-    println!("Max eval/s: {} K", get_max_eval());
+    println!("Elapsed time {} ms", elapsed_time);
 
-    println!("======================");
-    println!("[BENCH] system time: {}", jiff::Timestamp::now());
+    write_to_csv(
+        &get_cpu_model(),
+        Some(&git_commit_hash),
+        config.rng_seed,
+        true,
+        &elapsed_time.to_string(),
+    )?;
+
+    Ok(())
+}
+
+pub fn write_to_csv(
+    cpu: &str,
+    commit_hash: Option<&str>,
+    seed: Option<usize>,
+    early_termination: bool,
+    running_time: &str,
+) -> std_io::Result<()> {
+    let filename = "./../results/benchmark_results_native.csv";
+    let header = "Timestamp;CPU;CommitHash;Seed;EarlyTermination;RunningTime\n";
+
+    if !fs::metadata(filename).is_ok() {
+        let mut file = fs::OpenOptions::new()
+            .create(true)
+            .write(true)
+            .open(filename)?;
+        file.write_all(header.as_bytes())?;
+    }
+
+    let mut file = fs::OpenOptions::new().append(true).open(filename)?;
+
+    let timestamp = jiff::Timestamp::now();
+    let line = format!(
+        "{};{};{};{:?};{};{}\n",
+        timestamp,
+        cpu,
+        commit_hash.unwrap_or(""),
+        seed.unwrap_or(0),
+        early_termination,
+        running_time,
+    );
+
+    file.write_all(line.as_bytes())?;
 
     Ok(())
 }
@@ -211,4 +256,14 @@ pub fn get_git_commit_hash() -> String {
         true => String::from_utf8_lossy(&output.stdout).trim().to_string(),
         false => "unknown".to_string(),
     }
+}
+
+pub fn get_cpu_model() -> String {
+    let sys = System::new_all();
+
+    if let Some(cpu) = sys.cpus().get(0) {
+        return cpu.brand().to_string();
+    }
+
+    "Unknown".to_string()
 }
