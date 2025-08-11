@@ -170,7 +170,7 @@ pub fn write_to_csv(
     running_time: &str,
 ) -> std_io::Result<()> {
     let filename = "./../results/benchmark_results_native.csv";
-    let header = "Timestamp;CPU;CommitHash;Seed;EarlyTermination;RunningTime\n";
+    let header = "Timestamp,CPU,CommitHash,Seed,EarlyTermination,RunningTime\n";
 
     let parent_dir = Path::new(filename).parent().unwrap();
     fs::create_dir_all(parent_dir)?;
@@ -188,7 +188,7 @@ pub fn write_to_csv(
 
     let timestamp = jiff::Timestamp::now();
     let line = format!(
-        "{};{};{};{:?};{};{}\n",
+        "{},{},{},{:?},{},{}\n",
         timestamp,
         cpu,
         commit_hash.unwrap_or(""),
