@@ -42,10 +42,10 @@ fn main() -> Result<()> {
     //     .parse().expect("third argument must be the number of runs");
 
     // Using early termination
-    let time_limit = Duration::from_secs(1200);
+    let time_limit = Duration::from_secs(60);
     let n_runs_total = 1;
-    config.expl_cfg.time_limit = Duration::from_secs(1200).mul_f32(DEFAULT_EXPLORE_TIME_RATIO);
-    config.cmpr_cfg.time_limit = Duration::from_secs(1200).mul_f32(DEFAULT_COMPRESS_TIME_RATIO);
+    config.expl_cfg.time_limit = Duration::from_secs(60).mul_f32(DEFAULT_EXPLORE_TIME_RATIO);
+    config.cmpr_cfg.time_limit = Duration::from_secs(60).mul_f32(DEFAULT_COMPRESS_TIME_RATIO);
 
     config.expl_cfg.max_conseq_failed_attempts = Some(DEFAULT_MAX_CONSEQ_FAILS_EXPL);
     config.cmpr_cfg.shrink_decay = ShrinkDecayStrategy::FailureBased(DEFAULT_FAIL_DECAY_RATIO_CMPR);
@@ -172,10 +172,14 @@ pub fn write_to_csv(
     let filename = "./../results/benchmark_results_native.csv";
     let header = "Timestamp;CPU;CommitHash;Seed;EarlyTermination;RunningTime\n";
 
+    let parent_dir = Path::new(filename).parent().unwrap();
+    fs::create_dir_all(parent_dir)?;
+
     if !fs::metadata(filename).is_ok() {
         let mut file = fs::OpenOptions::new()
             .create(true)
             .write(true)
+            .append(true)
             .open(filename)?;
         file.write_all(header.as_bytes())?;
     }
