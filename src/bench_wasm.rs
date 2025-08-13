@@ -36,7 +36,7 @@ fn main() -> Result<()> {
         .expect("first argument must be the input file");
 
     // Using early termination & hardcoded time limit (high enough)
-    let time_limit = Duration::from_secs(1200);
+    let time_limit = Duration::from_secs(60);
     config.expl_cfg.time_limit = time_limit.mul_f32(DEFAULT_EXPLORE_TIME_RATIO);
     config.cmpr_cfg.time_limit = time_limit.mul_f32(DEFAULT_COMPRESS_TIME_RATIO);
 
@@ -210,7 +210,12 @@ pub fn get_git_commit_hash() -> String {
 }
 
 pub fn get_git_branch() -> String {
+    let parent_dir = Path::new("..").canonicalize().unwrap_or_else(|_| {
+        panic!("Failed to get parent directory path");
+    });
+
     let output = std::process::Command::new("git")
+        .current_dir(&parent_dir)
         .args(&["rev-parse", "--abbrev-ref", "HEAD"])
         .output()
         .expect("Failed to execute git command");
