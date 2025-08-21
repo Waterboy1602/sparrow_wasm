@@ -92,6 +92,7 @@ fn main() -> Result<()> {
         config.cde_config,
         config.poly_simpl_tolerance,
         config.min_item_separation,
+        config.narrow_concavity_cutoff_ratio,
     );
     let instance = jagua_rs::probs::spp::io::import(&importer, &ext_instance)?;
 

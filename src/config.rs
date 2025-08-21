@@ -20,6 +20,10 @@ pub struct SparrowConfig {
     /// Disabled if `None`.
     /// See [`jagua_rs::io::parser::Parser::new`] for more details.
     pub min_item_separation: Option<f32>,
+    /// Defines the maximum distance between two vertices of a polygon to consider it a narrow concavity (which will be closed).
+    /// Disabled if `None`.
+    /// See [`jagua_rs::io::parser::Parser::new`] for more details.
+    pub narrow_concavity_cutoff_ratio: Option<f32>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -43,7 +47,7 @@ pub struct CompressionConfig {
 #[derive(Debug, Clone, Copy)]
 pub enum ShrinkDecayStrategy {
     /// The shrink ratio decays linearly with time
-    TimeBased(Duration),
+    TimeBased,
     /// The shrink ratio decays by a fixed ratio every time it fails to compress into a feasible solution
     FailureBased(f32),
 }
@@ -71,9 +75,7 @@ pub const DEFAULT_SPARROW_CONFIG: SparrowConfig = SparrowConfig {
     cmpr_cfg: CompressionConfig {
         shrink_range: (0.0005, 0.00001),
         time_limit: Duration::from_secs(1 * 60),
-        shrink_decay: ShrinkDecayStrategy::TimeBased(
-            Duration::from_secs(1 * 60)
-        ),
+        shrink_decay: ShrinkDecayStrategy::TimeBased,
         separator_config: SeparatorConfig {
             iter_no_imprv_limit: 100,
             strike_limit: 5,
@@ -96,5 +98,6 @@ pub const DEFAULT_SPARROW_CONFIG: SparrowConfig = SparrowConfig {
         },
     },
     poly_simpl_tolerance: Some(0.001),
+    narrow_concavity_cutoff_ratio: Some(0.01),
     min_item_separation: None,
 };

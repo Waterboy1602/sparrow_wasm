@@ -31,7 +31,7 @@ mod integration_tests {
         let input_file_path = format!("{INSTANCE_BASE_PATH}/{path}");
         let json_instance = io::read_spp_instance_json(Path::new(&input_file_path))?;
 
-        let importer = Importer::new(config.cde_config, config.poly_simpl_tolerance, config.min_item_separation);
+        let importer = Importer::new(config.cde_config, config.poly_simpl_tolerance, config.min_item_separation, config.narrow_concavity_cutoff_ratio);
         let instance = jagua_rs::probs::spp::io::import(&importer, &json_instance)?;
 
         println!("[TEST] loaded instance: {}", json_instance.name);
