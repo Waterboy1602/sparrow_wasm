@@ -36,7 +36,7 @@ fn main() -> Result<()> {
         .expect("first argument must be the input file");
 
     // Using early termination & hardcoded time limit (high enough)
-    let time_limit = Duration::from_secs(60);
+    let time_limit = Duration::from_secs(12000);
     config.expl_cfg.time_limit = time_limit.mul_f32(DEFAULT_EXPLORE_TIME_RATIO);
     config.cmpr_cfg.time_limit = time_limit.mul_f32(DEFAULT_COMPRESS_TIME_RATIO);
 
