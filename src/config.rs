@@ -33,7 +33,7 @@ pub struct ExplorationConfig {
     pub max_conseq_failed_attempts: Option<usize>,
     pub solution_pool_distribution_stddev: f32,
     pub separator_config: SeparatorConfig,
-    pub large_item_ch_area_cutoff_percentile: f32
+    pub large_item_ch_area_cutoff_percentile: f32,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -63,14 +63,14 @@ pub const DEFAULT_SPARROW_CONFIG: SparrowConfig = SparrowConfig {
             iter_no_imprv_limit: 200,
             strike_limit: 3,
             log_level: log::Level::Info,
-            n_workers: 3,
+            n_workers: 1,
             sample_config: SampleConfig {
                 n_container_samples: 50,
                 n_focussed_samples: 25,
                 n_coord_descents: 3,
             },
         },
-        large_item_ch_area_cutoff_percentile: 0.75
+        large_item_ch_area_cutoff_percentile: 0.75,
     },
     cmpr_cfg: CompressionConfig {
         shrink_range: (0.0005, 0.00001),
@@ -80,7 +80,7 @@ pub const DEFAULT_SPARROW_CONFIG: SparrowConfig = SparrowConfig {
             iter_no_imprv_limit: 100,
             strike_limit: 5,
             log_level: log::Level::Debug,
-            n_workers: 3,
+            n_workers: 1,
             sample_config: SampleConfig {
                 n_container_samples: 50,
                 n_focussed_samples: 25,
