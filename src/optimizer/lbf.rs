@@ -9,18 +9,19 @@ use jagua_rs::probs::spp::entities::{SPInstance, SPPlacement, SPProblem};
 use log::debug;
 use ordered_float::OrderedFloat;
 use rand::prelude::SmallRng;
+use rand_chacha::ChaCha20Rng;
 use std::cmp::Reverse;
 use std::iter;
 
 pub struct LBFBuilder {
     pub instance: SPInstance,
     pub prob: SPProblem,
-    pub rng: SmallRng,
+    pub rng: ChaCha20Rng,
     pub sample_config: SampleConfig,
 }
 
 impl LBFBuilder {
-    pub fn new(instance: SPInstance, rng: SmallRng, sample_config: SampleConfig) -> Self {
+    pub fn new(instance: SPInstance, rng: ChaCha20Rng, sample_config: SampleConfig) -> Self {
         let prob = SPProblem::new(instance.clone());
 
         Self {

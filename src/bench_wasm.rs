@@ -3,6 +3,7 @@ use sparrow::util::terminator::Terminator;
 
 use rand::prelude::SmallRng;
 use rand::{Rng, SeedableRng};
+use rand_chacha::ChaCha20Rng;
 use sparrow::config::*;
 use sparrow::optimizer::lbf::LBFBuilder;
 use sparrow::optimizer::separator::Separator;
@@ -61,12 +62,12 @@ fn main() -> Result<()> {
     let mut rng = match config.rng_seed {
         Some(seed) => {
             println!("[BENCH] using provided seed: {}", seed);
-            SmallRng::seed_from_u64(seed as u64)
+            ChaCha20Rng::seed_from_u64(seed as u64)
         }
         None => {
             let seed = rand::random();
             println!("[BENCH] no seed provided, using: {}", seed);
-            SmallRng::seed_from_u64(seed)
+            ChaCha20Rng::seed_from_u64(seed)
         }
     };
 
@@ -87,7 +88,7 @@ fn main() -> Result<()> {
     );
     let instance = jagua_rs::probs::spp::io::import(&importer, &ext_intance)?;
 
-    let rng = SmallRng::seed_from_u64(rng.random());
+    let rng = ChaCha20Rng::seed_from_u64(rng.random());
     let mut terminator = BasicTerminator::new();
 
     let builder = LBFBuilder::new(instance.clone(), rng.clone(), LBF_SAMPLE_CONFIG).construct();

@@ -4,6 +4,7 @@ use clap::Parser as Clap;
 use log::{Level, info, warn};
 use rand::SeedableRng;
 use rand::prelude::{Rng, SmallRng};
+use rand_chacha::ChaCha20Rng;
 use sparrow::config::*;
 use sparrow::optimizer::optimize;
 use sparrow::util::io;
@@ -75,12 +76,12 @@ fn main() -> Result<()> {
     let mut rng = match config.rng_seed {
         Some(seed) => {
             info!("[MAIN] using seed: {}", seed);
-            SmallRng::seed_from_u64(seed as u64)
+            ChaCha20Rng::seed_from_u64(seed as u64)
         }
         None => {
             let seed = rand::random();
             warn!("[MAIN] no seed provided, using: {}", seed);
-            SmallRng::seed_from_u64(seed)
+            ChaCha20Rng::seed_from_u64(seed)
         }
     };
 

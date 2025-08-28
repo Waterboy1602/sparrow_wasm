@@ -14,6 +14,8 @@ use log::{Level, debug, log};
 use ordered_float::OrderedFloat;
 use rand::rngs::SmallRng;
 use rand::{Rng, SeedableRng};
+use rand_chacha::ChaCha20Rng;
+
 #[cfg(not(target_arch = "wasm32"))]
 use rayon::ThreadPool;
 use rayon::iter::IntoParallelRefMutIterator;
@@ -30,7 +32,7 @@ pub struct SeparatorConfig {
 
 pub struct Separator {
     pub instance: SPInstance,
-    pub rng: SmallRng,
+    pub rng: ChaCha20Rng,
     pub prob: SPProblem,
     pub ct: CollisionTracker,
     pub workers: Vec<SeparatorWorker>,
@@ -43,7 +45,7 @@ impl Separator {
     pub fn new(
         instance: SPInstance,
         prob: SPProblem,
-        mut rng: SmallRng,
+        mut rng: ChaCha20Rng,
         config: SeparatorConfig,
     ) -> Self {
         let ct = CollisionTracker::new(&prob.layout);
@@ -52,7 +54,7 @@ impl Separator {
                 instance: instance.clone(),
                 prob: prob.clone(),
                 ct: ct.clone(),
-                rng: SmallRng::seed_from_u64(rng.random()),
+                rng: ChaCha20Rng::seed_from_u64(rng.random()),
                 sample_config: config.sample_config.clone(),
             })
             .collect();
@@ -317,7 +319,7 @@ impl Separator {
                 instance: self.instance.clone(),
                 prob: self.prob.clone(),
                 ct: self.ct.clone(),
-                rng: SmallRng::seed_from_u64(self.rng.random()),
+                rng: ChaCha20Rng::seed_from_u64(self.rng.random()),
                 sample_config: self.config.sample_config.clone(),
             };
         });

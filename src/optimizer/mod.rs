@@ -10,6 +10,7 @@ use crate::util::terminator::Terminator;
 use jagua_rs::probs::spp::entities::{SPInstance, SPSolution};
 use rand::prelude::SmallRng;
 use rand::{RngCore, SeedableRng};
+use rand_chacha::ChaCha20Rng;
 use std::time::Duration;
 
 pub mod compress;
@@ -20,13 +21,13 @@ mod worker;
 
 pub fn optimize(
     instance: SPInstance,
-    mut rng: SmallRng,
+    mut rng: ChaCha20Rng,
     sol_listener: &mut impl SolutionListener,
     terminator: &mut impl Terminator,
     expl_config: &ExplorationConfig,
     cmpr_config: &CompressionConfig,
 ) -> SPSolution {
-    let mut next_rng = || SmallRng::seed_from_u64(rng.next_u64());
+    let mut next_rng = || ChaCha20Rng::seed_from_u64(rng.next_u64());
     let builder = LBFBuilder::new(instance.clone(), next_rng(), LBF_SAMPLE_CONFIG).construct();
 
     terminator.new_timeout(expl_config.time_limit);
