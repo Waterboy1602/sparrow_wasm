@@ -57,7 +57,7 @@ fn main() -> Result<()> {
     println!("[BENCH] git commit hash: {}", git_commit_hash);
     println!("[BENCH] system time: {}", jiff::Timestamp::now());
 
-    config.rng_seed = Some(8780830896941405304);
+    config.rng_seed = Some(42);
 
     let mut rng = match config.rng_seed {
         Some(seed) => {
