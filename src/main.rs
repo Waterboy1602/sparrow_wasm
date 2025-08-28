@@ -3,7 +3,7 @@ extern crate core;
 use clap::Parser as Clap;
 use log::{Level, info, warn};
 use rand::SeedableRng;
-use rand::prelude::SmallRng;
+use rand::prelude::{Rng, SmallRng};
 use sparrow::config::*;
 use sparrow::optimizer::optimize;
 use sparrow::util::io;
@@ -72,7 +72,7 @@ fn main() -> Result<()> {
         compress_dur.as_secs()
     );
 
-    let rng = match config.rng_seed {
+    let mut rng = match config.rng_seed {
         Some(seed) => {
             info!("[MAIN] using seed: {}", seed);
             SmallRng::seed_from_u64(seed as u64)
@@ -83,6 +83,9 @@ fn main() -> Result<()> {
             SmallRng::seed_from_u64(seed)
         }
     };
+
+    let first_random: u32 = rng.random();
+    info!("[MAIN] first random number: {}", first_random);
 
     info!("[MAIN] system time: {}", jiff::Timestamp::now());
 
